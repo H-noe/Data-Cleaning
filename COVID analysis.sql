@@ -1,0 +1,149 @@
+/*
+COVID 19 Data Exploration 
+
+Skills used: Joins, CTE's, Temp Tables, Windows Functions, Aggregate Functions, Creating Views, Converting Data Types
+
+*/
+
+
+
+
+
+SELECT *
+FROM [Port Project ]..Covid_Deaths
+Where continent is not null
+Order by 3,4
+
+--SELECT *
+--FROM [Port Project ]..Covid_Vaccinations
+--Order by 3,4
+
+-- Select the data that we are going to start with
+
+Select Location, date, total_cases, new_cases, total_deaths, population
+FROM [Port Project ]..Covid_Deaths
+Order by 1,2
+
+-- Total Cases vs Total Deaths (As Percentage)
+-- Shows likelihood of dying if you contract COVID in your country 
+
+Select Location, date, total_cases, total_deaths, (total_deaths/total_cases)*100 as Death_Percentage
+FROM [Port Project ]..Covid_Deaths
+Where Location = 'United States'
+Order by 1,2
+
+-- Total Cases vs Population
+-- Shows what percentage of population contracted COVID over time
+
+Select Location, date, total_cases, population, (total_cases/population)*100 as Contracted_Percentage
+FROM [Port Project ]..Covid_Deaths
+Where Location = 'United States'
+Order by 1,2
+
+-- Countries with Highest Infection Rate compared to Population
+
+Select Location, population,MAX(total_cases) as Highest_InfectionCount,MAX((total_cases/population))*100 as Contracted_Percentage
+FROM [Port Project ]..Covid_Deaths
+--Where Location = 'United States'
+Group by Location, population
+Order by Contracted_Percentage desc
+
+-- Contries with the Highest Death Count per Population
+
+
+Select Location, MAX(cast(total_deaths as int)) as Total_DeathCount
+FROM [Port Project ]..Covid_Deaths
+Where continent is not null
+Group by Location
+Order by Total_DeathCount desc
+
+--BREAKING THINGS DOWN BY CONTINENT
+
+-- Continents with the Highest Death Count per Population
+
+Select location, MAX(cast(total_deaths as int)) as Total_DeathCount
+FROM [Port Project ]..Covid_Deaths
+Where continent is null
+Group by location
+Order by Total_DeathCount desc
+
+
+-- GLOBAL NUMBERS
+
+Select SUM(new_cases) as Total_Cases, SUM(cast(new_deaths as int)) as Total_Deaths, SUM(cast(new_deaths as int))/SUM(new_cases)*100 as Death_Percentage
+FROM [Port Project ]..Covid_Deaths
+--Where Location = 'United States'
+Where continent is not null
+--Group by date
+Order by 1,2
+
+-- Total Population vs Vaccinations
+-- USING CTE
+
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations, SUM(CONVERT(bigint,vac.new_vaccinations)) 
+OVER (Partition by dea.location ORDER BY dea.location,dea.date) as RollingVaccinationCount
+From  [Port Project ]..Covid_Deaths dea
+join  [Port Project ]..Covid_Vaccinations vac
+On dea.location = vac.location
+and dea.date = vac.date
+Where dea.continent is not null
+--order by 2,3
+
+
+-- Using CTE to perform calculation on Partition By in previous query
+
+With PopvsVac (Continent, Location, Date, Population, New_Vaccinations, RollingVaccinationCount)
+as
+(
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations, SUM(CONVERT(bigint,vac.new_vaccinations)) 
+OVER (Partition by dea.location ORDER BY dea.location,dea.date) as RollingVaccinationCount
+From  [Port Project ]..Covid_Deaths dea
+join  [Port Project ]..Covid_Vaccinations vac
+On dea.location = vac.location
+and dea.date = vac.date
+Where dea.continent is not null
+--order by 2,3
+)
+Select *, (RollingVaccinationCount/Population)*100
+FROM PopvsVac
+
+
+-- Using Temp Table to perform Calculation on Partition By in previous query
+
+DROP Table if exists #PercentPopVaccinated
+Create Table #PercentPopVaccinated
+(
+Continent nvarchar(255),
+Location nvarchar(255),
+Date datetime,
+Population numeric,
+New_Vaccinations numeric,
+RollingVaccinationCount numeric
+)
+
+Insert into #PercentPopVaccinated
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations, SUM(CONVERT(bigint,vac.new_vaccinations)) 
+OVER (Partition by dea.location ORDER BY dea.location,dea.date) as RollingVaccinationCount
+From  [Port Project ]..Covid_Deaths dea
+join  [Port Project ]..Covid_Vaccinations vac
+On dea.location = vac.location
+and dea.date = vac.date
+Where dea.continent is not null
+order by 2,3
+
+Select *, (RollingVaccinationCount/Population)*100
+FROM #PercentPopVaccinated
+
+-- Creating View to store data for Tableau Visualizations
+
+Create view PercentPopVaccinated as 
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations, SUM(CONVERT(bigint,vac.new_vaccinations)) 
+OVER (Partition by dea.location ORDER BY dea.location,dea.date) as RollingVaccinationCount
+From  [Port Project ]..Covid_Deaths dea
+join  [Port Project ]..Covid_Vaccinations vac
+On dea.location = vac.location
+and dea.date = vac.date
+Where dea.continent is not null
+--order by 2,3
+
+
