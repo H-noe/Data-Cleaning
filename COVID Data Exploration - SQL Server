@@ -134,7 +134,7 @@ order by 2,3
 Select *, (RollingVaccinationCount/Population)*100
 FROM #PercentPopVaccinated
 
--- Creating View to store data for Tableau Visualizations
+-- Creating View to store data for Visualizations
 
 Create view PercentPopVaccinated as 
 Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations, SUM(CONVERT(bigint,vac.new_vaccinations)) 
